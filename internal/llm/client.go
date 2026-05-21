@@ -35,3 +35,11 @@ func (c *Client) Send(
 	}
 	return c.api.Chat.Completions.New(ctx, params)
 }
+
+func (c *Client) SetModel(model string) {
+	c.model = model
+}
+
+func (c *Client) GetModel() string {
+	return c.model
+}

@@ -1,13 +1,10 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-
 	"github.com/joho/godotenv"
+	"github.com/lucasmonteverdi1/coding-agent/internal/agent"
 	"github.com/lucasmonteverdi1/coding-agent/internal/llm"
-	"github.com/openai/openai-go"
+	"github.com/lucasmonteverdi1/coding-agent/internal/tools"
 )
 
 func main() {
@@ -15,15 +12,12 @@ func main() {
 
 	client := llm.NewClient()
 
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage("Say hello in one sentence"),
-	}
+	registry := tools.NewRegistry()
+	registry.Register(tools.ReadFileTool())
+	registry.Register(tools.WriteFileTool())
+	registry.Register(tools.RunCommandTool())
+	registry.Register(tools.ListFilesTool())
+	registry.Register(tools.WebSearchTool())
 
-	resp, err := client.Send(context.Background(), messages, nil)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(resp.Choices[0].Message.Content)
+	agent.RunREPL(agent.New(client, registry))
 }
