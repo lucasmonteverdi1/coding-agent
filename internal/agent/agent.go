@@ -24,12 +24,20 @@ func New(client *llm.Client, registry tools.Registry) *Agent {
 	}
 }
 
-func (agent *Agent) Run(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion) (string, error) {
+func (agent *Agent) Run(
+	ctx context.Context,
+	messages []openai.ChatCompletionMessageParamUnion,
+	onEvent AgentEventHandler,
+) (string, error) {
 	toolParams := buildToolParams(agent.registry)
 
 	// INNER LOOP
 	for i := 0; i < maxIterations; i++ {
-		fmt.Printf("[iter %d] calling LLM\n", i+1)
+		emitEvent(onEvent, AgentEvent{
+			Type:      EventThinking,
+			Message:   "Thinking...",
+			Iteration: i + 1,
+		})
 
 		resp, err := agent.client.Send(ctx, messages, toolParams)
 		if err != nil {
@@ -40,6 +48,11 @@ func (agent *Agent) Run(ctx context.Context, messages []openai.ChatCompletionMes
 
 		// No tool calls — LLM is done, return its text
 		if len(choice.Message.ToolCalls) == 0 {
+			emitEvent(onEvent, AgentEvent{
+				Type:      EventFinalizing,
+				Message:   "Writing answer...",
+				Iteration: i + 1,
+			})
 			return choice.Message.Content, nil
 		}
 
@@ -48,23 +61,40 @@ func (agent *Agent) Run(ctx context.Context, messages []openai.ChatCompletionMes
 
 		// Execute call tool and append results
 		for _, tc := range choice.Message.ToolCalls {
-			result := agent.executeTool(tc)
+			args, err := parseToolArguments(tc.Function.Arguments)
+			if err != nil {
+				emitEvent(onEvent, AgentEvent{
+					Type:      EventToolArgsError,
+					Message:   fmt.Sprintf("Could not parse arguments for tool: %s", tc.Function.Name),
+					ToolName:  tc.Function.Name,
+					Iteration: i + 1,
+				})
+			} else {
+				emitEvent(onEvent, AgentEvent{
+					Type:      EventToolCall,
+					Message:   describeToolCall(tc.Function.Name, args),
+					ToolName:  tc.Function.Name,
+					Iteration: i + 1,
+				})
+			}
+
+			result := agent.executeTool(tc, args)
 			messages = append(messages, openai.ToolMessage(result, tc.ID))
-			fmt.Printf("[iter %d] tool=%s result=%q\n", i+1, tc.Function.Name, truncate(result, 80))
+			emitEvent(onEvent, AgentEvent{
+				Type:      EventToolDone,
+				Message:   summarizeToolResult(result),
+				ToolName:  tc.Function.Name,
+				Iteration: i + 1,
+			})
 		}
 	}
 	return "", fmt.Errorf("reached max iterations (%d)", maxIterations)
 }
 
-func (agent *Agent) executeTool(tc openai.ChatCompletionMessageToolCall) string {
+func (agent *Agent) executeTool(tc openai.ChatCompletionMessageToolCall, args map[string]any) string {
 	tool, ok := agent.registry[tc.Function.Name]
 	if !ok {
 		return fmt.Sprintf("error: unknown tool %q", tc.Function.Name)
-	}
-
-	var args map[string]any
-	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		return fmt.Sprintf("error: could not parse args: %v", err)
 	}
 
 	result, err := tool.Handler(args)
@@ -90,11 +120,4 @@ func buildToolParams(registry tools.Registry) []openai.ChatCompletionToolParam {
 		})
 	}
 	return params
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

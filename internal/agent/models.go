@@ -1,6 +1,6 @@
 package agent
 
-// Allows O(1) lookup
+// map for O(1) lookup; values are empty structs to avoid wasted memory.
 var validModels = map[string]struct{}{
 	"gpt-5.5":      {},
 	"gpt-5.4":      {},
