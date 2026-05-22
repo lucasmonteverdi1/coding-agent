@@ -11,16 +11,11 @@ import (
 )
 
 func RunREPL(ag *Agent) {
-	fmt.Println("==========================================================")
-	fmt.Println("  Coding Agent")
-	fmt.Printf("  Model: %s\n", ag.client.GetModel())
-	fmt.Println("  Type /model <name> to switch models, /quit to exit.")
-	fmt.Println("==========================================================")
-	fmt.Println()
-	fmt.Println("Hi! What would you like me to do?")
-	fmt.Println()
-
 	scanner := bufio.NewScanner(os.Stdin)
+	ag.setScanner(scanner)
+
+	printBanner(ag)
+
 	var history []openai.ChatCompletionMessageParamUnion
 
 	for {
@@ -39,20 +34,17 @@ func RunREPL(ag *Agent) {
 		}
 
 		if strings.HasPrefix(line, "/model") {
-			model := strings.TrimSpace(strings.TrimPrefix(line, "/model"))
-			if model == "" {
-				fmt.Printf("current model: %s\n", ag.client.GetModel())
-				continue
-			}
-			if !isValidModel(model) {
-				fmt.Println("invalid model. available models:")
-				for m := range validModels {
-					fmt.Printf("  - %s\n", m)
-				}
-				continue
-			}
-			ag.client.SetModel(model)
-			fmt.Printf("switched to %s\n", model)
+			handleModelCommand(ag, line)
+			continue
+		}
+
+		if strings.HasPrefix(line, "/plan") {
+			handleToggleCommand(line, "/plan", ag.SetPlanMode, "Plan mode")
+			continue
+		}
+
+		if strings.HasPrefix(line, "/supervision") {
+			handleToggleCommand(line, "/supervision", ag.SetSupervision, "Supervision")
 			continue
 		}
 
@@ -73,6 +65,19 @@ func RunREPL(ag *Agent) {
 	}
 }
 
+func printBanner(ag *Agent) {
+	fmt.Println("==========================================================")
+	fmt.Println("  Coding Agent")
+	fmt.Printf("  Model:       %s\n", ag.client.GetModel())
+	fmt.Printf("  Plan mode:   %v\n", ag.planMode)
+	fmt.Printf("  Supervision: %v\n", ag.supervision)
+	fmt.Println("  Commands: /model <name>  /plan on|off  /supervision on|off  /quit")
+	fmt.Println("==========================================================")
+	fmt.Println()
+	fmt.Println("Hi! What would you like me to do?")
+	fmt.Println()
+}
+
 func renderAgentEvent(event AgentEvent) {
 	switch event.Type {
 	case EventThinking:
@@ -82,8 +87,52 @@ func renderAgentEvent(event AgentEvent) {
 	case EventToolArgsError:
 		fmt.Printf("  ✗ %s\n", event.Message)
 	case EventToolDone:
-		// intentionally silent, the tool call line is enough
+		// intentionally silent
 	case EventFinalizing:
 		fmt.Println("  Done. Writing answer...")
+	case EventPlanReady:
+		fmt.Println("\n--- PLAN ---")
+		fmt.Println(event.Message)
+		fmt.Println("------------")
+		fmt.Println("[y] approve  [n] reject  or type a revised instruction")
+		fmt.Print("> ")
+	case EventPlanRejected:
+		fmt.Println(event.Message)
+	case EventSupervisionPrompt:
+		fmt.Printf("\n  ⚠ Supervision: about to run %q\n", event.Message)
+		fmt.Print("  Proceed? [y/n] > ")
+	case EventSupervisionRejected:
+		fmt.Printf("  ✗ %s\n", event.Message)
+	}
+}
+
+func handleModelCommand(ag *Agent, line string) {
+	model := strings.TrimSpace(strings.TrimPrefix(line, "/model"))
+	if model == "" {
+		fmt.Printf("current model: %s\n", ag.client.GetModel())
+		return
+	}
+	if !isValidModel(model) {
+		fmt.Println("invalid model. available models:")
+		for m := range validModels {
+			fmt.Printf("  - %s\n", m)
+		}
+		return
+	}
+	ag.client.SetModel(model)
+	fmt.Printf("switched to %s\n", model)
+}
+
+func handleToggleCommand(line, prefix string, setter func(bool), label string) {
+	val := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+	switch val {
+	case "on":
+		setter(true)
+		fmt.Printf("%s enabled\n", label)
+	case "off":
+		setter(false)
+		fmt.Printf("%s disabled\n", label)
+	default:
+		fmt.Printf("usage: %s on|off\n", prefix)
 	}
 }

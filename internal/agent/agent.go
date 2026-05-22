@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,13 +9,17 @@ import (
 	"github.com/lucasmonteverdi1/coding-agent/internal/llm"
 	"github.com/lucasmonteverdi1/coding-agent/internal/tools"
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
 )
 
 const maxIterations = 25
 
 type Agent struct {
-	client   *llm.Client
-	registry tools.Registry
+	client      *llm.Client
+	registry    tools.Registry
+	planMode    bool
+	supervision bool
+	scanner     *bufio.Scanner
 }
 
 func New(client *llm.Client, registry tools.Registry) *Agent {
@@ -24,12 +29,30 @@ func New(client *llm.Client, registry tools.Registry) *Agent {
 	}
 }
 
+func (agent *Agent) SetPlanMode(on bool) { agent.planMode = on }
+
+func (agent *Agent) SetSupervision(on bool) { agent.supervision = on }
+
+func (agent *Agent) setScanner(s *bufio.Scanner) { agent.scanner = s }
+
 func (agent *Agent) Run(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,
 	onEvent AgentEventHandler,
 ) (string, error) {
 	toolParams := buildToolParams(agent.registry)
+
+	// Plan mode: generate and approve a plan before executing anything
+	if agent.planMode {
+		userMessage := extractLastUserMessage(messages)
+		approved, revised, err := agent.runPlanMode(ctx, userMessage, onEvent)
+		if err != nil || !approved {
+			return "Plan rejected. Send a new prompt to try again.", nil
+		}
+		if revised != "" {
+			messages[len(messages)-1] = openai.UserMessage(revised)
+		}
+	}
 
 	// INNER LOOP
 	for i := 0; i < maxIterations; i++ {
@@ -78,6 +101,12 @@ func (agent *Agent) Run(
 				})
 			}
 
+			var rejected bool
+			rejected, messages = agent.handleSupervision(tc, args, messages, onEvent, i+1)
+			if rejected {
+				continue
+			}
+
 			result := agent.executeTool(tc, args)
 			messages = append(messages, openai.ToolMessage(result, tc.ID))
 			emitEvent(onEvent, AgentEvent{
@@ -120,4 +149,15 @@ func buildToolParams(registry tools.Registry) []openai.ChatCompletionToolParam {
 		})
 	}
 	return params
+}
+
+func extractLastUserMessage(messages []openai.ChatCompletionMessageParamUnion) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if msg := messages[i].OfUser; msg != nil {
+			if !param.IsOmitted(msg.Content.OfString) {
+				return msg.Content.OfString.Value
+			}
+		}
+	}
+	return ""
 }

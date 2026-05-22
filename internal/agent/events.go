@@ -3,11 +3,15 @@ package agent
 type AgentEventType string
 
 const (
-	EventThinking      AgentEventType = "thinking"
-	EventToolCall      AgentEventType = "tool_call"
-	EventToolArgsError AgentEventType = "tool_args_error"
-	EventToolDone      AgentEventType = "tool_done"
-	EventFinalizing    AgentEventType = "finalizing"
+	EventThinking            AgentEventType = "thinking"
+	EventToolCall            AgentEventType = "tool_call"
+	EventToolArgsError       AgentEventType = "tool_args_error"
+	EventToolDone            AgentEventType = "tool_done"
+	EventFinalizing          AgentEventType = "finalizing"
+	EventPlanReady           AgentEventType = "plan_ready"
+	EventPlanRejected        AgentEventType = "plan_rejected"
+	EventSupervisionRejected AgentEventType = "supervision_rejected"
+	EventSupervisionPrompt   AgentEventType = "supervision_prompt"
 )
 
 type AgentEvent struct {
