@@ -8,8 +8,6 @@ import (
 	"github.com/openai/openai-go"
 )
 
-var errPlanRejected = fmt.Errorf("plan rejected")
-
 var supervisedTools = map[string]struct{}{
 	"write_file":  {},
 	"run_command": {},
@@ -47,8 +45,9 @@ func (agent *Agent) runPlanMode(
 		Message: plan,
 	})
 
-	agent.scanner.Scan()
-	input := strings.TrimSpace(agent.scanner.Text())
+	var input string
+	fmt.Scanln(&input)
+	input = strings.TrimSpace(input)
 
 	switch input {
 	case "y", "Y":
@@ -58,20 +57,18 @@ func (agent *Agent) runPlanMode(
 			Type:    EventPlanRejected,
 			Message: "Plan rejected",
 		})
-		return false, "", errPlanRejected
+		return false, "", nil
 	default:
 		return true, input, nil
 	}
 }
 
 func (agent *Agent) askConfirmation(toolName string, args map[string]any) bool {
-	emitEvent(nil, AgentEvent{
-		Type:    EventSupervisionPrompt,
-		Message: describeToolCall(toolName, args),
-	})
-	agent.scanner.Scan()
-	input := strings.TrimSpace(agent.scanner.Text())
-	return input == "y" || input == "Y"
+	fmt.Printf("\n  ⚠ Supervision: %s\n", describeToolCall(toolName, args))
+	fmt.Print("  Proceed? [y/n] > ")
+	var input string
+	fmt.Scanln(&input)
+	return strings.TrimSpace(input) == "y" || strings.TrimSpace(input) == "Y"
 }
 
 func (agent *Agent) handleSupervision(

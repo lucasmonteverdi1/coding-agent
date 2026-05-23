@@ -39,15 +39,18 @@ func WebSearchTool() Tool {
 			})
 
 			resp, err := http.Post(
-				"https://app.tavilly.com/search",
+				"https://api.tavily.com/search",
 				"application/json",
 				strings.NewReader(string(body)),
 			)
 			if err != nil {
 				return "", fmt.Errorf("web_search: %w", err)
 			}
-			// HTTP response bodies must be closed manually. defer makes sure it happens even if you return early.
 			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				return "", fmt.Errorf("web_search: API returned status %d", resp.StatusCode)
+			}
 
 			raw, err := io.ReadAll(resp.Body)
 			if err != nil {
