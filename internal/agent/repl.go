@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/lucasmonteverdi1/coding-agent/internal/models"
 	"github.com/openai/openai-go"
 )
 
@@ -113,9 +114,9 @@ func handleModelCommand(ag *Agent, line string) {
 		fmt.Printf("current model: %s\n", ag.client.GetModel())
 		return
 	}
-	if !isValidModel(model) {
+	if !models.IsValidModel(model) {
 		fmt.Println("invalid model. available models:")
-		for m := range validModels {
+		for m := range models.ValidModels {
 			fmt.Printf("  - %s\n", m)
 		}
 		return

@@ -41,6 +41,13 @@ func (agent *Agent) Run(
 ) (string, error) {
 	toolParams := buildToolParams(agent.registry)
 
+	// Inject system prompt if not present
+	if len(messages) == 0 || messages[0].OfSystem == nil {
+		messages = append([]openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+		}, messages...)
+	}
+
 	// Plan mode: generate and approve a plan before executing anything
 	if agent.planMode {
 		userMessage := extractLastUserMessage(messages)
@@ -131,7 +138,7 @@ func (agent *Agent) Run(
 					ToolName:  tc.Function.Name,
 					Iteration: i + 1,
 				})
-				if !agent.askConfirmation(tc.Function.Name, args) {
+				if !agent.supervision && !agent.askConfirmation(tc.Function.Name, args) {
 					messages = append(messages, openai.ToolMessage("user rejected action requiring approval", tc.ID))
 					continue
 				}

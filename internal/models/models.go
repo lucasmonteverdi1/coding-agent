@@ -1,7 +1,7 @@
-package agent
+package models
 
 // map for O(1) lookup; values are empty structs to avoid wasted memory.
-var validModels = map[string]struct{}{
+var ValidModels = map[string]struct{}{
 	"gpt-5.5":      {},
 	"gpt-5.4":      {},
 	"gpt-5.4-mini": {},
@@ -38,7 +38,7 @@ var validModels = map[string]struct{}{
 	"o4-mini": {},
 }
 
-func isValidModel(model string) bool {
-	_, ok := validModels[model]
+func IsValidModel(model string) bool {
+	_, ok := ValidModels[model]
 	return ok
 }

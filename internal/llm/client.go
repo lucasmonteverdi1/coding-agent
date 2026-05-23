@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/lucasmonteverdi1/coding-agent/internal/models"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 )
@@ -14,9 +15,13 @@ type Client struct {
 }
 
 func NewClient() *Client {
+	model := os.Getenv("OPENAI_MODEL")
+	if model == "" || !models.IsValidModel(model) {
+		model = "gpt-4o"
+	}
 	return &Client{
 		api:   openai.NewClient(option.WithAPIKey(os.Getenv("OPENAI_API_KEY"))),
-		model: "gpt-4o",
+		model: model,
 	}
 }
 
