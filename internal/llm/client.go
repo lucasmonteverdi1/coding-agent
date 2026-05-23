@@ -20,7 +20,6 @@ func NewClient() *Client {
 	}
 }
 
-// (c *Client) is the receiver. Equivalent to "this" or "self".
 func (c *Client) Send(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,

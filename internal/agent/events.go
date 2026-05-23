@@ -11,7 +11,8 @@ const (
 	EventPlanReady           AgentEventType = "plan_ready"
 	EventPlanRejected        AgentEventType = "plan_rejected"
 	EventSupervisionRejected AgentEventType = "supervision_rejected"
-	EventSupervisionPrompt   AgentEventType = "supervision_prompt"
+	EventGuardrailBlocked    AgentEventType = "guardrail_blocked"
+	EventGuardrailApproval   AgentEventType = "guardrail_approval"
 )
 
 type AgentEvent struct {

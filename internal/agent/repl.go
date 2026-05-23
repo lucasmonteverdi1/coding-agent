@@ -12,7 +12,6 @@ import (
 
 func RunREPL(ag *Agent) {
 	scanner := bufio.NewScanner(os.Stdin)
-	ag.setScanner(scanner)
 
 	printBanner(ag)
 
@@ -98,12 +97,14 @@ func renderAgentEvent(event AgentEvent) {
 		fmt.Print("> ")
 	case EventPlanRejected:
 		fmt.Println(event.Message)
-	case EventSupervisionPrompt:
-		fmt.Printf("\n  ⚠ Supervision: about to run %q\n", event.Message)
-		fmt.Print("  Proceed? [y/n] > ")
 	case EventSupervisionRejected:
 		fmt.Printf("  ✗ %s\n", event.Message)
+	case EventGuardrailBlocked:
+		fmt.Printf("  ✗ Blocked: %s\n", event.Message)
+	case EventGuardrailApproval:
+		fmt.Printf("  ⚠ Approval required: %s\n", event.Message)
 	}
+
 }
 
 func handleModelCommand(ag *Agent, line string) {

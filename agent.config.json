@@ -1,0 +1,30 @@
+{
+  "workspace_root": ".",
+  "max_tool_output_bytes": 65536,
+  "denied_path_patterns": [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "id_rsa",
+    "id_ed25519",
+    ".git/config"
+  ],
+  "denied_commands": [
+    "rm -rf",
+    "sudo",
+    "chmod -R 777",
+    "chown -R",
+    "mkfs",
+    "shutdown",
+    "reboot",
+    "curl | sh",
+    "wget | sh"
+  ],
+  "approval_commands": [
+    "git push",
+    "npm install",
+    "pip install",
+    "go get"
+  ]
+}

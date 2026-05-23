@@ -1,11 +1,11 @@
 package agent
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 
+	"github.com/lucasmonteverdi1/coding-agent/internal/guardrails"
 	"github.com/lucasmonteverdi1/coding-agent/internal/llm"
 	"github.com/lucasmonteverdi1/coding-agent/internal/tools"
 	"github.com/openai/openai-go"
@@ -17,23 +17,22 @@ const maxIterations = 25
 type Agent struct {
 	client      *llm.Client
 	registry    tools.Registry
+	guardrails  guardrails.Policy
 	planMode    bool
 	supervision bool
-	scanner     *bufio.Scanner
 }
 
-func New(client *llm.Client, registry tools.Registry) *Agent {
+func New(client *llm.Client, registry tools.Registry, policy guardrails.Policy) *Agent {
 	return &Agent{
-		client:   client,
-		registry: registry,
+		client:     client,
+		registry:   registry,
+		guardrails: policy,
 	}
 }
 
 func (agent *Agent) SetPlanMode(on bool) { agent.planMode = on }
 
 func (agent *Agent) SetSupervision(on bool) { agent.supervision = on }
-
-func (agent *Agent) setScanner(s *bufio.Scanner) { agent.scanner = s }
 
 func (agent *Agent) Run(
 	ctx context.Context,
@@ -50,7 +49,8 @@ func (agent *Agent) Run(
 			return "Plan rejected. Send a new prompt to try again.", nil
 		}
 		if revised != "" {
-			messages[len(messages)-1] = openai.UserMessage(revised)
+			original := extractLastUserMessage(messages)
+			messages[len(messages)-1] = openai.UserMessage(original + "\n\nRevision: " + revised)
 		}
 	}
 
@@ -92,6 +92,8 @@ func (agent *Agent) Run(
 					ToolName:  tc.Function.Name,
 					Iteration: i + 1,
 				})
+				messages = append(messages, openai.ToolMessage("error: could not parse tool arguments", tc.ID))
+				continue
 			} else {
 				emitEvent(onEvent, AgentEvent{
 					Type:      EventToolCall,
@@ -107,7 +109,36 @@ func (agent *Agent) Run(
 				continue
 			}
 
+			decision := agent.guardrails.CheckToolCall(guardrails.ToolCall{
+				Name: tc.Function.Name,
+				Args: args,
+			})
+
+			switch decision.Type {
+			case guardrails.Deny:
+				emitEvent(onEvent, AgentEvent{
+					Type:      EventGuardrailBlocked,
+					Message:   decision.Reason,
+					ToolName:  tc.Function.Name,
+					Iteration: i + 1,
+				})
+				messages = append(messages, openai.ToolMessage("action blocked by guardrail: "+decision.Reason, tc.ID))
+				continue
+			case guardrails.RequireApproval:
+				emitEvent(onEvent, AgentEvent{
+					Type:      EventGuardrailApproval,
+					Message:   decision.Reason,
+					ToolName:  tc.Function.Name,
+					Iteration: i + 1,
+				})
+				if !agent.askConfirmation(tc.Function.Name, args) {
+					messages = append(messages, openai.ToolMessage("user rejected action requiring approval", tc.ID))
+					continue
+				}
+			}
+
 			result := agent.executeTool(tc, args)
+			result = agent.guardrails.SanitizeOutput(result)
 			messages = append(messages, openai.ToolMessage(result, tc.ID))
 			emitEvent(onEvent, AgentEvent{
 				Type:      EventToolDone,
