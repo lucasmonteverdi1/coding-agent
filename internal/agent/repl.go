@@ -4,15 +4,49 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/lucasmonteverdi1/coding-agent/internal/models"
 	"github.com/openai/openai-go"
 )
 
+// Package-level greeting and next-prompt messages to vary the interaction
+var greetingMessages = []string{
+	"Hi! What would you like me to do?",
+	"Hello! What task should I tackle next?",
+	"Hey there! What would you like me to work on?",
+	"Greetings! What's the next coding task?",
+}
+
+var nextPrompts = []string{
+	"What would you like me to do next?",
+	"Anything else you'd like me to tackle?",
+	"What should I work on next?",
+	"What's next?",
+}
+
+func pickGreeting() string {
+	if len(greetingMessages) == 0 {
+		return "Hi! What would you like me to do?"
+	}
+	return greetingMessages[rand.Intn(len(greetingMessages))]
+}
+
+func pickNextPrompt() string {
+	if len(nextPrompts) == 0 {
+		return "Anything else?"
+	}
+	return nextPrompts[rand.Intn(len(nextPrompts))]
+}
+
 func RunREPL(ag *Agent) {
 	scanner := bufio.NewScanner(os.Stdin)
+
+	// Seed RNG for greeting/next prompt variation
+	rand.Seed(time.Now().UnixNano())
 
 	printBanner(ag)
 
@@ -60,7 +94,7 @@ func RunREPL(ag *Agent) {
 
 		history = append(history, openai.AssistantMessage(reply))
 		fmt.Printf("\nAssistant:\n%s\n\n", reply)
-		fmt.Println("Anything else?")
+		fmt.Println(pickNextPrompt())
 		fmt.Println()
 	}
 }
@@ -74,7 +108,7 @@ func printBanner(ag *Agent) {
 	fmt.Println("  Commands: /model <name>  /plan on|off  /supervision on|off  /quit")
 	fmt.Println("==========================================================")
 	fmt.Println()
-	fmt.Println("Hi! What would you like me to do?")
+	fmt.Println(pickGreeting())
 	fmt.Println()
 }
 

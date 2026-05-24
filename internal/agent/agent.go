@@ -12,21 +12,21 @@ import (
 	"github.com/openai/openai-go/packages/param"
 )
 
-const maxIterations = 25
-
 type Agent struct {
-	client      *llm.Client
-	registry    tools.Registry
-	guardrails  guardrails.Policy
-	planMode    bool
-	supervision bool
+	client        *llm.Client
+	registry      tools.Registry
+	guardrails    guardrails.Policy
+	planMode      bool
+	supervision   bool
+	maxIterations int
 }
 
-func New(client *llm.Client, registry tools.Registry, policy guardrails.Policy) *Agent {
+func New(client *llm.Client, registry tools.Registry, policy guardrails.Policy, maxIter int) *Agent {
 	return &Agent{
-		client:     client,
-		registry:   registry,
-		guardrails: policy,
+		client:        client,
+		registry:      registry,
+		guardrails:    policy,
+		maxIterations: maxIter,
 	}
 }
 
@@ -62,7 +62,7 @@ func (agent *Agent) Run(
 	}
 
 	// INNER LOOP
-	for i := 0; i < maxIterations; i++ {
+	for i := 0; i < agent.maxIterations; i++ {
 		emitEvent(onEvent, AgentEvent{
 			Type:      EventThinking,
 			Message:   "Thinking...",
@@ -155,7 +155,7 @@ func (agent *Agent) Run(
 			})
 		}
 	}
-	return "", fmt.Errorf("reached max iterations (%d)", maxIterations)
+	return "", fmt.Errorf("reached max iterations (%d)", agent.maxIterations)
 }
 
 func (agent *Agent) executeTool(tc openai.ChatCompletionMessageToolCall, args map[string]any) string {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/joho/godotenv"
@@ -11,6 +12,9 @@ import (
 )
 
 func main() {
+	maxIter := flag.Int("max-iterations", 50, "maximum number of iterations per agent run")
+	flag.Parse()
+
 	godotenv.Load()
 
 	policy, err := guardrails.LoadPolicy("agent.config.json")
@@ -27,5 +31,5 @@ func main() {
 	registry.Register(tools.ListFilesTool())
 	registry.Register(tools.WebSearchTool())
 
-	agent.RunREPL(agent.New(client, registry, policy))
+	agent.RunREPL(agent.New(client, registry, policy, *maxIter))
 }
