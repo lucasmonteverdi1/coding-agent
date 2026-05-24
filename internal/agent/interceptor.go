@@ -8,6 +8,11 @@ import (
 	"github.com/openai/openai-go"
 )
 
+func readLine(agent *Agent) string {
+	input, _ := agent.reader.ReadString('\n')
+	return strings.TrimSpace(input)
+}
+
 var supervisedTools = map[string]struct{}{
 	"write_file":  {},
 	"run_command": {},
@@ -45,9 +50,7 @@ func (agent *Agent) runPlanMode(
 		Message: plan,
 	})
 
-	var input string
-	fmt.Scanln(&input)
-	input = strings.TrimSpace(input)
+	input := readLine(agent)
 
 	switch input {
 	case "y", "Y":
@@ -66,9 +69,8 @@ func (agent *Agent) runPlanMode(
 func (agent *Agent) askConfirmation(toolName string, args map[string]any) bool {
 	fmt.Printf("\n  ⚠ Supervision: %s\n", describeToolCall(toolName, args))
 	fmt.Print("  Proceed? [y/n] > ")
-	var input string
-	fmt.Scanln(&input)
-	return strings.TrimSpace(input) == "y" || strings.TrimSpace(input) == "Y"
+	input := readLine(agent)
+	return input == "y" || input == "Y"
 }
 
 func (agent *Agent) handleSupervision(

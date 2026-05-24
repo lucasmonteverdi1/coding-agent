@@ -1,9 +1,11 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/lucasmonteverdi1/coding-agent/internal/guardrails"
 	"github.com/lucasmonteverdi1/coding-agent/internal/llm"
@@ -19,6 +21,7 @@ type Agent struct {
 	planMode      bool
 	supervision   bool
 	maxIterations int
+	reader        *bufio.Reader
 }
 
 func New(client *llm.Client, registry tools.Registry, policy guardrails.Policy, maxIter int) *Agent {
@@ -27,6 +30,7 @@ func New(client *llm.Client, registry tools.Registry, policy guardrails.Policy, 
 		registry:      registry,
 		guardrails:    policy,
 		maxIterations: maxIter,
+		reader:        bufio.NewReader(os.Stdin),
 	}
 }
 

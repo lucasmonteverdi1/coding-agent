@@ -2,7 +2,7 @@
 Implementation of a coding agent in Go, including a harness, conversation mode, plan mode, and supervision mode.
 
 ## Requirements
-- Go 1.21+
+- Go 1.26+
 - An [OpenAI API key](https://platform.openai.com/api-keys)
 - A [Tavily API key](https://tavily.com) (for web search)
 

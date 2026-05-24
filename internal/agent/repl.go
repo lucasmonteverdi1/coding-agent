@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/lucasmonteverdi1/coding-agent/internal/models"
 	"github.com/openai/openai-go"
@@ -44,9 +43,6 @@ func pickNextPrompt() string {
 
 func RunREPL(ag *Agent) {
 	scanner := bufio.NewScanner(os.Stdin)
-
-	// Seed RNG for greeting/next prompt variation
-	rand.Seed(time.Now().UnixNano())
 
 	printBanner(ag)
 

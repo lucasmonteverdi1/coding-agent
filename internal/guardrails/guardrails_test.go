@@ -1,6 +1,7 @@
 package guardrails
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -184,6 +185,61 @@ func TestSanitizeOutput_NoLimitWhenZero(t *testing.T) {
 	result := p.SanitizeOutput(long)
 	if result != long {
 		t.Error("expected no truncation when MaxToolOutputBytes is 0")
+	}
+}
+
+// --- LoadPolicy ---
+
+func TestLoadPolicy_FileNotFound_ReturnsDefault(t *testing.T) {
+	policy, err := LoadPolicy("/nonexistent/path/config.json")
+	if err != nil {
+		t.Fatalf("expected no error when file not found, got: %v", err)
+	}
+	if policy.config.MaxToolOutputBytes != 65536 {
+		t.Errorf("expected default MaxToolOutputBytes=65536, got %d", policy.config.MaxToolOutputBytes)
+	}
+}
+
+func TestLoadPolicy_ValidFile_LoadsConfig(t *testing.T) {
+	f, err := os.CreateTemp("", "agent-config-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	f.WriteString(`{
+		"workspace_root": ".",
+		"max_tool_output_bytes": 1024,
+		"denied_commands": ["sudo"],
+		"approval_commands": ["git push"]
+	}`)
+	f.Close()
+
+	policy, err := LoadPolicy(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if policy.config.MaxToolOutputBytes != 1024 {
+		t.Errorf("expected MaxToolOutputBytes=1024, got %d", policy.config.MaxToolOutputBytes)
+	}
+	if len(policy.config.DeniedCommands) != 1 || policy.config.DeniedCommands[0] != "sudo" {
+		t.Errorf("expected DeniedCommands=[sudo], got %v", policy.config.DeniedCommands)
+	}
+}
+
+func TestLoadPolicy_MalformedJSON_ReturnsError(t *testing.T) {
+	f, err := os.CreateTemp("", "agent-config-*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	f.WriteString(`{ this is not valid json }`)
+	f.Close()
+
+	_, err = LoadPolicy(f.Name())
+	if err == nil {
+		t.Error("expected error for malformed JSON, got nil")
 	}
 }
 
