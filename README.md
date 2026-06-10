@@ -38,6 +38,30 @@ go run . --max-iterations 100
 
 The agent starts an interactive REPL. Type a task in natural language and press Enter.
 
+## Using outside this repo
+
+Build a binary and put it on your PATH to use the agent in any project:
+
+```bash
+go build -o coding-agent .
+mv coding-agent /usr/local/bin/
+```
+
+Then launch it from any directory:
+
+```bash
+cd ~/your-project
+coding-agent
+```
+
+The agent sandboxes itself to the directory it was launched from. Since `.env` files are project-local, set your API keys in your shell profile instead:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export TAVILY_API_KEY=tvly-...
+export OPENAI_MODEL=gpt-4o  # optional, defaults to gpt-4o
+```
+
 ## Commands
 
 | Command                 | Description                              |
