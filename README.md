@@ -40,7 +40,16 @@ The agent starts an interactive REPL. Type a task in natural language and press 
 
 ## Using outside this repo
 
-Build a binary and put it on your PATH to use the agent in any project:
+### Download a prebuilt binary
+
+Grab the archive for your platform from the [Releases](https://github.com/lucasmonteverdi1/coding-agent/releases) page, then:
+
+```bash
+tar -xzf coding-agent_*.tar.gz
+mv coding-agent /usr/local/bin/
+```
+
+### Or build from source
 
 ```bash
 go build -o coding-agent .
