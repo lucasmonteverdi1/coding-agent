@@ -1,10 +1,38 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/openai/openai-go"
 )
+
+// isZeroMessage reports whether a result slot was never filled in. Every tool
+// message the loop produces sets OfTool.
+func isZeroMessage(m openai.ChatCompletionMessageParamUnion) bool {
+	return m.OfTool == nil
+}
+
+// errorType gives error.type a bounded-cardinality value, never the error's
+// message. Concrete types are only useful when they carry meaning; the generic
+// stdlib wrappers collapse to "_OTHER" per the OTel convention.
+func errorType(err error) string {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	}
+	switch fmt.Sprintf("%T", err) {
+	case "*errors.errorString", "*fmt.wrapError":
+		return "_OTHER"
+	default:
+		return fmt.Sprintf("%T", err)
+	}
+}
 
 func parseToolArguments(raw string) (map[string]any, error) {
 	var args map[string]any
