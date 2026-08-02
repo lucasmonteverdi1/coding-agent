@@ -20,12 +20,14 @@ func RunCommandTool() Tool {
 			},
 			"required": ["command"]
 		}`),
-		Handler: func(args map[string]any) (string, error) {
+		Handler: func(ctx context.Context, args map[string]any) (string, error) {
 			command, ok := args["command"].(string)
 			if !ok {
 				return "", fmt.Errorf("command must be a string")
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			// Derived from the agent's context, so upstream cancellation
+			// propagates instead of the command running to its full timeout.
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
 
 			cmd := exec.CommandContext(ctx, "sh", "-c", command)

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 )
@@ -16,7 +17,7 @@ func ReadFileTool() Tool {
 			},
 			"required": ["path"]
 		}`),
-		Handler: func(args map[string]any) (string, error) {
+		Handler: func(_ context.Context, args map[string]any) (string, error) {
 			// returns 2 values: a string with the result or the error. one is always empty.
 			path, ok := args["path"].(string)
 			if !ok {
