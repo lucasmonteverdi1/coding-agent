@@ -47,6 +47,8 @@ func RunREPL(ag *Agent) {
 	printBanner(ag)
 
 	var history []openai.ChatCompletionMessageParamUnion
+	var session sessionUsage
+	onEvent := newEventRenderer(&session)
 
 	for {
 		fmt.Print("> ")
@@ -59,6 +61,7 @@ func RunREPL(ag *Agent) {
 		}
 
 		if line == "/quit" {
+			session.printTotal()
 			fmt.Println("Bye!")
 			return
 		}
@@ -80,7 +83,7 @@ func RunREPL(ag *Agent) {
 
 		history = append(history, openai.UserMessage(line))
 
-		reply, err := ag.Run(context.Background(), history, renderAgentEvent)
+		reply, err := ag.Run(context.Background(), history, onEvent)
 
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
@@ -89,10 +92,13 @@ func RunREPL(ag *Agent) {
 		}
 
 		history = append(history, openai.AssistantMessage(reply))
-		fmt.Printf("\nAssistant:\n%s\n\n", reply)
-		fmt.Println(pickNextPrompt())
+		fmt.Printf("%s\n%s\n\n", bold("Assistant:"), reply)
+		fmt.Println(dim(pickNextPrompt()))
 		fmt.Println()
 	}
+
+	// Reached on Ctrl-D; /quit returns earlier and prints its own total.
+	session.printTotal()
 }
 
 func printBanner(ag *Agent) {
@@ -108,18 +114,26 @@ func printBanner(ag *Agent) {
 	fmt.Println()
 }
 
-func renderAgentEvent(event AgentEvent) {
+// newEventRenderer returns the REPL's event handler, closing over the session
+// totals so no package-level state is needed.
+func newEventRenderer(session *sessionUsage) AgentEventHandler {
+	return func(event AgentEvent) {
+		renderAgentEvent(event, session)
+	}
+}
+
+func renderAgentEvent(event AgentEvent, session *sessionUsage) {
 	switch event.Type {
 	case EventThinking:
-		fmt.Println("\nWorking...")
+		fmt.Println(dim("\nWorking..."))
 	case EventToolCall:
-		fmt.Printf("  → %s\n", event.Message)
+		fmt.Println(dim("  → " + event.Message))
 	case EventToolArgsError:
 		fmt.Printf("  ✗ %s\n", event.Message)
 	case EventToolDone:
 		// intentionally silent
 	case EventFinalizing:
-		fmt.Println("  Done. Writing answer...")
+		fmt.Println(dim("  Done. Writing answer..."))
 	case EventPlanReady:
 		fmt.Println("\n--- PLAN ---")
 		fmt.Println(event.Message)
@@ -134,8 +148,85 @@ func renderAgentEvent(event AgentEvent) {
 		fmt.Printf("  ✗ Blocked: %s\n", event.Message)
 	case EventGuardrailApproval:
 		fmt.Printf("  ⚠ Approval required: %s\n", event.Message)
+	case EventTurnUsage:
+		session.add(event.Usage)
 	}
 
+}
+
+// sessionUsage accumulates across turns so the REPL can show a running total.
+type sessionUsage struct {
+	turns        int
+	inputTokens  int64
+	outputTokens int64
+	costUSD      float64
+	costKnown    bool
+}
+
+// add folds one turn into the session and renders both, from the OpenAI
+// response metadata. Independent of telemetry: no collector involved.
+func (s *sessionUsage) add(u *TurnUsage) {
+	if u == nil {
+		return
+	}
+
+	s.turns++
+	s.inputTokens += u.InputTokens
+	s.outputTokens += u.OutputTokens
+	s.costUSD += u.CostUSD
+	s.costKnown = s.costKnown || u.CostKnown
+
+	cost := "cost " + formatUSD(u.CostUSD)
+	if !u.CostKnown {
+		// No price for this model: say so rather than implying it was free.
+		cost = "cost unknown"
+	}
+
+	// Dimmed and rule-separated so usage metadata never reads as agent output.
+	fmt.Println()
+	fmt.Println(dim("  ── usage ─────────────────-"))
+	fmt.Println(dim(fmt.Sprintf("  %s · %s · %s · %d↑ %d↓ tokens · %s",
+		u.Model, plural(u.Iterations, "iteration"), plural(u.ToolCalls, "tool"),
+		u.InputTokens, u.OutputTokens, cost)))
+
+	if s.turns > 1 {
+		total := formatUSD(s.costUSD)
+		if !s.costKnown {
+			total = "cost unknown"
+		}
+		fmt.Println(dim(fmt.Sprintf("  session: %d turns · %d↑ %d↓ · %s",
+			s.turns, s.inputTokens, s.outputTokens, total)))
+	}
+	fmt.Println()
+}
+
+// printTotal reports the session's consumption on the way out.
+func (s *sessionUsage) printTotal() {
+	if s.turns == 0 {
+		return
+	}
+	line := fmt.Sprintf("Session: %s · %d↑ %d↓ tokens",
+		plural(s.turns, "turn"), s.inputTokens, s.outputTokens)
+	if s.costKnown {
+		line += " · " + formatUSD(s.costUSD)
+	}
+	fmt.Println(dim(line))
+}
+
+// plural renders "1 tool" but "2 tools".
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// formatUSD keeps sub-cent costs readable instead of flattening them to $0.00.
+func formatUSD(usd float64) string {
+	if usd > 0 && usd < 0.01 {
+		return fmt.Sprintf("$%.6f", usd)
+	}
+	return fmt.Sprintf("$%.4f", usd)
 }
 
 func handleModelCommand(ag *Agent, line string) {
@@ -146,7 +237,7 @@ func handleModelCommand(ag *Agent, line string) {
 	}
 	if !models.IsValidModel(model) {
 		fmt.Println("invalid model. available models:")
-		for m := range models.ValidModels {
+		for _, m := range models.ValidModelsOrder {
 			fmt.Printf("  - %s\n", m)
 		}
 		return
