@@ -37,3 +37,6 @@ otel-collector.yaml
 
 # Collector output captured while debugging
 collector*.log
+
+# macOS
+.DS_Store
