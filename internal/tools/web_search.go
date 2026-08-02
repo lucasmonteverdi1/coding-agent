@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,7 +21,7 @@ func WebSearchTool() Tool {
 			},
 			"required": ["query"]
 		}`),
-		Handler: func(args map[string]any) (string, error) {
+		Handler: func(ctx context.Context, args map[string]any) (string, error) {
 			query, ok := args["query"].(string)
 			if !ok {
 				return "", fmt.Errorf("query must be a string")
@@ -38,11 +39,16 @@ func WebSearchTool() Tool {
 				"max_results":  5,
 			})
 
-			resp, err := http.Post(
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 				"https://api.tavily.com/search",
-				"application/json",
 				strings.NewReader(string(body)),
 			)
+			if err != nil {
+				return "", fmt.Errorf("web_search: %w", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return "", fmt.Errorf("web_search: %w", err)
 			}

@@ -30,13 +30,20 @@ Implementation of a coding agent in Go, including a harness, conversation mode, 
 go run .
 ```
 
+The agent starts an interactive REPL. Type a task in natural language and press Enter.
+
 For tasks that require reading many files, increase the iteration cap:
 
 ```bash
 go run . --max-iterations 100
 ```
 
-The agent starts an interactive REPL. Type a task in natural language and press Enter.
+| Flag | Default | Description |
+|---|---|---|
+| `--max-iterations` | `50` | Maximum tool-loop iterations per turn |
+| `--otel` | `false` | Export OpenTelemetry traces and metrics |
+| `--otel-endpoint` | `localhost:4317` | OTLP/gRPC collector endpoint |
+| `--pricing-config` | `pricing.config.json` | Path to the per-model pricing file |
 
 ## Using outside this repo
 
@@ -80,6 +87,105 @@ export OPENAI_MODEL=gpt-4o  # optional, defaults to gpt-4o
 | `/supervision [on/off]` | Supervision mode on/off                  |
 | `/quit`                 | Exit                                     |
 
+## Observability
+
+### Token usage and cost (no setup)
+
+After every turn the agent reports what it consumed, read straight from the
+OpenAI response metadata. Nothing to install:
+
+```
+  ── usage ─────────────────
+  gpt-4o · 6 iterations · 6 tools · 6446↑ 165↓ tokens · cost $0.0178
+  session: 3 turns · 10162↑ 582↓ · $0.0312
+```
+
+Prices come from `pricing.config.json` (USD per million tokens), loaded the same
+way as the guardrail policy — a missing file falls back to built-in defaults. A
+model with no entry reports `cost unknown` rather than `$0.00`, so an unpriced
+model is visible instead of looking free.
+
+Below, supervision mode confirms each destructive action before it runs, and the
+usage block closes the turn:
+
+![Agent run with supervision prompts and the per-turn usage block](docs/terminal.png)
+
+### Traces and metrics (optional)
+
+For a full trace tree the agent can export OpenTelemetry over OTLP/gRPC,
+following the [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
+Opt-in and off by default:
+
+```bash
+go run . --otel
+```
+
+Point a collector at `localhost:4317` (override with `--otel-endpoint` or
+`OTEL_EXPORTER_OTLP_ENDPOINT`). If no collector is reachable the agent runs
+normally — export failures never block or crash a turn.
+
+A sample collector config is in `otel-collector.sample.yaml`:
+
+```bash
+cp otel-collector.sample.yaml otel-collector.yaml
+docker run --rm -p 4317:4317 \
+  -v $(pwd)/otel-collector.yaml:/etc/otelcol-contrib/config.yaml \
+  otel/opentelemetry-collector-contrib:latest
+```
+
+For a visual trace tree, Jaeger accepts OTLP directly and serves a UI on
+`localhost:16686`:
+
+```bash
+docker run --rm -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one:latest
+```
+
+> Jaeger shows traces only. To inspect metrics, use the collector above with
+> its `debug` exporter.
+
+### Span hierarchy
+
+```
+agent.turn                     one REPL turn
+└── gen_ai.chat                one iteration of the tool loop
+    └── gen_ai.execute_tool    one tool call
+```
+
+![Trace of one agent turn in Jaeger](docs/trace.png)
+
+When the model requests several tools in one response, they execute
+concurrently and appear as sibling spans starting at the same offset — the
+three `gen_ai.execute_tool` bars above. Approval prompts are serialised first
+so they stay readable, then approved calls run in parallel.
+
+The trace also shows where the time actually goes: tool execution is
+milliseconds, while each `gen_ai.chat` span is seconds of model latency.
+
+`agent.turn` carries the turn aggregates: `agent.iterations`,
+`agent.tool_calls.total`, `gen_ai.usage.*`, `agent.cost.usd`, and
+`agent.outcome` (`completed` / `cap_reached` / `user_rejected_plan` / `error`).
+`gen_ai.chat` carries `agent.iteration.phase`, which distinguishes plan-mode
+exploration from execution. `gen_ai.execute_tool` carries the guardrail
+decision, approval wait time, and output size.
+
+### Metrics
+
+| Metric | Type | Attributes |
+|---|---|---|
+| `gen_ai.client.operation.duration` | Histogram (s) | model, operation |
+| `gen_ai.client.token.usage` | Histogram (token) | `gen_ai.token.type` |
+| `agent.tool.calls` | Counter | tool name, decision |
+| `agent.turn.iterations` | Histogram | `agent.outcome` |
+
+On spans, an unpriced model omits the `agent.cost.usd` attribute entirely,
+for the same reason the terminal reports `cost unknown`.
+
+### Privacy
+
+No prompts, responses, or file contents are captured by default. Setting
+`OTEL_GENAI_CAPTURE_MESSAGE_CONTENT=true` records them as span *events* only —
+never as span or metric attributes.
+
 ## Features
 
 - **Conversational REPL** — persistent message history across turns; the agent remembers context from previous messages
@@ -87,8 +193,11 @@ export OPENAI_MODEL=gpt-4o  # optional, defaults to gpt-4o
 - **Plan mode** — before acting, the agent explores the project and proposes a numbered plan for approval; supports approval, rejection, or inline revision
 - **Supervision mode** — intercepts destructive actions (`write_file`, `run_command`) and asks for confirmation before executing
 - **Guardrails** — always-on safety layer that blocks dangerous paths and commands, requires approval for risky ones (e.g. `git push`), and truncates oversized tool output
+- **Parallel tool calls** — when the model requests several tools at once they execute concurrently; approval prompts stay sequential so the terminal remains readable
+- **Usage and cost reporting** — every turn reports tokens and dollars from the API's own metadata, with a running session total
+- **OpenTelemetry** — optional traces and metrics over OTLP, following the GenAI semantic conventions
 - **Model switching** — swap OpenAI models at runtime without restarting
-- **Configurable** — `agent.config.json` defines blocked paths, denied commands, and approval-required commands; default model set via `OPENAI_MODEL` env var
+- **Configurable** — `agent.config.json` defines blocked paths, denied commands, and approval-required commands; `pricing.config.json` defines per-model token costs
 
 ## Tools
 
@@ -100,41 +209,9 @@ export OPENAI_MODEL=gpt-4o  # optional, defaults to gpt-4o
 | `run_command` | Execute a shell command (30s timeout) | Supervision mode |
 | `web_search` | Search the web via Tavily | No |
 
-## Sample run
+## Sample run — plan mode
 
-### Run 1 — multi-step file edit (7 iterations)
-
-The agent receives a task, explores the project, reads the target file, writes the change, and reads it back to verify.
-
-```
-Hi! What would you like me to do?
-
-> add a comment to client.go explaining what it does
-
-Working...
-  → Listing .
-Working...
-  → Listing ./internal
-Working...
-  → Listing ./internal/agent
-Working...
-  → Reading ./internal/agent/agent.go
-Working...
-  → Writing ./internal/agent/agent.go
-Working...
-  → Reading ./internal/agent/agent.go
-Working...
-  Done. Writing answer...
-Assistant:
-I added a package-level comment at the top of agent.go explaining its purpose.
-The comment describes how the package manages interactions with a language model,
-including message handling, tool call orchestration, and supervision based on plans
-and policies. The change has been verified successfully.
-```
-
-### Run 2 — plan mode (17 iterations)
-
-With plan mode on, the agent reads the entire codebase before proposing a numbered
+With plan mode on, the agent reads the codebase before proposing a numbered
 plan. The user can approve, reject, or revise it before any changes are made.
 
 ```

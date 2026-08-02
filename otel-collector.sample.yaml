@@ -1,0 +1,31 @@
+# Sample OpenTelemetry Collector config for local development.
+#
+# Only needed if you want to inspect traces and metrics. The agent runs fine
+# without it, and prints token usage and cost to the terminal on its own.
+#
+#   cp otel-collector.sample.yaml otel-collector.yaml
+#   docker run --rm -p 4317:4317 \
+#     -v $(pwd)/otel-collector.yaml:/etc/otelcol-contrib/config.yaml \
+#     otel/opentelemetry-collector-contrib:latest
+#
+# Then, in another terminal:  go run . --otel
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  # Prints everything it receives to the collector's stdout.
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      exporters: [debug]

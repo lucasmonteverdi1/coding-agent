@@ -26,6 +26,14 @@ coding-agent/
     ├── guardrails/
     │   └── guardrails.go          — policy loaded from agent.config.json
     │
+    ├── pricing/
+    │   └── pricing.go             — per-model token costs from pricing.config.json
+    │
+    ├── telemetry/
+    │   ├── telemetry.go           — OTel provider setup + shutdown
+    │   ├── semconv.go             — agent-specific attribute keys
+    │   └── metrics.go             — the four instruments
+    │
     └── agent/
         ├── agent.go               — Agent struct + inner loop (Run)
         ├── repl.go                — outer loop (REPL), slash commands, rendering
@@ -43,7 +51,7 @@ type Tool struct {
     Name        string
     Description string
     Schema      json.RawMessage          // JSON Schema sent to the LLM
-    Handler     func(map[string]any) (string, error)
+    Handler     func(context.Context, map[string]any) (string, error)
 }
 
 // The registry: name → tool
@@ -78,7 +86,7 @@ User types input
                    │ for each tool call:
                    ▼
 ┌─────────────────────────────────────────┐
-│  INTERCEPTION STACK                     │
+│  PHASE A — sequential                   │
 │                                         │
 │  1. Supervision (optional, user toggle) │
 │     write_file / run_command → confirm  │
@@ -87,10 +95,17 @@ User types input
 │     • Deny  → block, return error msg   │
 │     • RequireApproval → confirm         │
 │     • Allow → proceed                   │
+│                                         │
+│  Stays sequential: approval prompts     │
+│  block on stdin and must not interleave │
 └──────────────────┬──────────────────────┘
-                   │
+                   │ approved calls
                    ▼
-            tool.Handler(args)
+┌─────────────────────────────────────────┐
+│  PHASE B — concurrent                   │
+│  tool.Handler(ctx, args) in goroutines  │
+│  results written to indexed slots       │
+└──────────────────┬──────────────────────┘
                    │
                    ▼
          result → SanitizeOutput
@@ -132,3 +147,15 @@ The inner loop never calls `fmt.Print` directly. Instead it emits `AgentEvent` v
 **History ownership:** the REPL owns the outer history slice and appends only user messages and final assistant replies. Tool-call round trips (intermediate assistant messages + tool results) live inside `Run`'s local copy and are discarded after each turn. This keeps the conversation context clean across turns.
 
 **Single stdin reader:** `bufio.NewReader(os.Stdin)` is created once in `New` and stored on the `Agent` struct. The REPL uses its own `bufio.Scanner` for the main prompt loop. The agent's reader is used only by the interceptor (plan approval, supervision confirmation), avoiding conflicts over the shared stdin stream.
+
+## Observability
+
+Instrumentation lives at the interception stack, not in the tool handlers — the guardrail decision is already computed in one place, so all five tools get `agent.tool.decision` for free.
+
+**Opt-in without conditionals:** call sites never check whether telemetry is on. When `telemetry.Init` runs with `Enabled: false` it registers no global provider, and the OTel API hands back no-op tracers and meters. That keeps `if enabled` out of the agent loop entirely.
+
+**Consumer-side LLM interface:** `agent.llmClient` is declared in `package agent` rather than `internal/llm`, following the Go convention of defining interfaces where they are used. `*llm.Client` satisfies it unchanged, and tests substitute a fake to assert on the span tree without a network call.
+
+**Iteration phase:** plan mode calls `Run` recursively, so both passes emit `gen_ai.chat` spans with colliding iteration indexes. The phase is carried on the context and stamped as `agent.iteration.phase`, making planning spans distinguishable from execution.
+
+**Absent cost over zero cost:** an unpriced model omits `agent.cost.usd` instead of reporting `0`. `SetModel` does not validate against the pricing table, so a silent `$0.00` would be indistinguishable from a genuinely free turn.

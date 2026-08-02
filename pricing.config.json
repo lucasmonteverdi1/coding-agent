@@ -1,0 +1,59 @@
+{
+  "gpt-5.6":       { "input_per_1m": 5.00,  "output_per_1m": 30.00 },
+  "gpt-5.6-sol":   { "input_per_1m": 5.00,  "output_per_1m": 30.00 },
+  "gpt-5.6-terra": { "input_per_1m": 2.00,  "output_per_1m": 12.00 },
+  "gpt-5.6-luna":  { "input_per_1m": 0.20,  "output_per_1m": 1.20 },
+
+  "gpt-5.5":     { "input_per_1m": 5.00,  "output_per_1m": 30.00 },
+  "gpt-5.5-pro": { "input_per_1m": 30.00, "output_per_1m": 180.00 },
+
+  "gpt-5.4":      { "input_per_1m": 2.50,  "output_per_1m": 15.00 },
+  "gpt-5.4-mini": { "input_per_1m": 0.75,  "output_per_1m": 4.50 },
+  "gpt-5.4-nano": { "input_per_1m": 0.20,  "output_per_1m": 1.25 },
+  "gpt-5.4-pro":  { "input_per_1m": 30.00, "output_per_1m": 180.00 },
+
+  "gpt-5.3-codex":       { "input_per_1m": 1.75, "output_per_1m": 14.00 },
+  "gpt-5.3-chat-latest": { "input_per_1m": 1.75, "output_per_1m": 14.00 },
+
+  "gpt-5.2":             { "input_per_1m": 1.75,  "output_per_1m": 14.00 },
+  "gpt-5.2-pro":         { "input_per_1m": 21.00, "output_per_1m": 168.00 },
+  "gpt-5.2-chat-latest": { "input_per_1m": 1.75,  "output_per_1m": 14.00 },
+
+  "gpt-5.1":             { "input_per_1m": 1.25, "output_per_1m": 10.00 },
+  "gpt-5.1-chat-latest": { "input_per_1m": 1.25, "output_per_1m": 10.00 },
+
+  "gpt-5":             { "input_per_1m": 1.25,  "output_per_1m": 10.00 },
+  "gpt-5-mini":        { "input_per_1m": 0.25,  "output_per_1m": 2.00 },
+  "gpt-5-nano":        { "input_per_1m": 0.05,  "output_per_1m": 0.40 },
+  "gpt-5-pro":         { "input_per_1m": 15.00, "output_per_1m": 120.00 },
+  "gpt-5-chat-latest": { "input_per_1m": 1.25,  "output_per_1m": 10.00 },
+
+  "chat-latest":         { "input_per_1m": 5.00, "output_per_1m": 30.00 },
+  "chatgpt-4o-latest":   { "input_per_1m": 5.00, "output_per_1m": 15.00 },
+
+  "gpt-4.5-preview": { "input_per_1m": 75.00, "output_per_1m": 150.00 },
+
+  "gpt-4.1":      { "input_per_1m": 2.00, "output_per_1m": 8.00 },
+  "gpt-4.1-mini": { "input_per_1m": 0.40, "output_per_1m": 1.60 },
+  "gpt-4.1-nano": { "input_per_1m": 0.10, "output_per_1m": 0.40 },
+
+  "gpt-4o":      { "input_per_1m": 2.50, "output_per_1m": 10.00 },
+  "gpt-4o-mini": { "input_per_1m": 0.15, "output_per_1m": 0.60 },
+
+  "gpt-4-turbo": { "input_per_1m": 10.00, "output_per_1m": 30.00 },
+
+  "gpt-4": { "input_per_1m": 30.00, "output_per_1m": 60.00 },
+
+  "gpt-3.5-turbo": { "input_per_1m": 0.50, "output_per_1m": 1.50 },
+
+  "o4-mini": { "input_per_1m": 1.10, "output_per_1m": 4.40 },
+
+  "o3":               { "input_per_1m": 2.00,  "output_per_1m": 8.00 },
+  "o3-mini":          { "input_per_1m": 1.10,  "output_per_1m": 4.40 },
+  "o3-pro":           { "input_per_1m": 20.00, "output_per_1m": 80.00 },
+  "o3-deep-research": { "input_per_1m": 10.00, "output_per_1m": 40.00 },
+
+  "o1":      { "input_per_1m": 15.00,  "output_per_1m": 60.00 },
+  "o1-mini": { "input_per_1m": 1.10,   "output_per_1m": 4.40 },
+  "o1-pro":  { "input_per_1m": 150.00, "output_per_1m": 600.00 }
+}

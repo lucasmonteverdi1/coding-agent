@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -17,7 +18,7 @@ func ListFilesTool() Tool {
 			},
 			"required": ["path"]
 		}`),
-		Handler: func(args map[string]any) (string, error) {
+		Handler: func(_ context.Context, args map[string]any) (string, error) {
 			path, ok := args["path"].(string)
 			if !ok {
 				return "", fmt.Errorf("path must be a string")
